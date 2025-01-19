@@ -1,14 +1,21 @@
 MRuby::Gem::Specification.new('picoruby-mqtt') do |spec|
   spec.license = 'MIT'
-  spec.author  = 'HASUMI Hitoshi'
+  spec.authors = ['Ryosuke Uchida']
   spec.summary = 'MQTT client for PicoRuby'
 
-  spec.add_dependency 'picoruby-socket'
-  spec.add_dependency 'picoruby-machine'
+  spec.add_dependency 'picoruby-time-class'
+  spec.add_dependency 'picoruby-pack'
 
-  if build.vm_mruby?
-    spec.add_dependency 'mruby-pack', gemdir: "#{MRUBY_ROOT}/mrbgems/picoruby-mruby/lib/mruby/mrbgems/mruby-pack"
-  elsif build.vm_mrubyc?
-    spec.add_dependency 'picoruby-pack'
+  build.porting(dir)
+
+  if cc.defines.include?('PICORUBY_PLATFORM=posix')
+    spec.mruby.linker.flags_after_libraries << '-lssl'
+    spec.mruby.linker.flags_after_libraries << '-lcrypto'
+  else
+    # TODO refactor
+    # cyw43 is only for pico_w but picoruby-net is also for POSIX
+    # spec.add_dependency 'picoruby-cyw43'
+    spec.add_dependency 'picoruby-mbedtls'
   end
+
 end
