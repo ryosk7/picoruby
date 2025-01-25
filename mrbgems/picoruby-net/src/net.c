@@ -1,9 +1,6 @@
 #include <stdbool.h>
 #include <mrubyc.h>
 #include "../include/net.h"
-#include "value.h"
-#include "symbol.h"
-#include "class.h"
 
 static void
 c_net_dns_resolve(mrbc_vm *vm, mrbc_value *v, int argc)
