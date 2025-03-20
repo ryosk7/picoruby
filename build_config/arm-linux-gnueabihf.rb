@@ -14,16 +14,7 @@ MRuby::CrossBuild.new("arm-linux-gnueabihf") do |conf|
   conf.linker.flags << '-Wl,-rpath,/usr/arm-linux-gnueabihf/lib'
   conf.archiver.command = 'arm-linux-gnueabihf-ar'
 
-  conf.cc.defines << "PICORUBY_PLATFORM=posix"
-
   conf.cc.defines << "MRBC_REQUIRE_32BIT_ALIGNMENT=1"
-
-  if ENV['PICORUBY_NO_LIBC_ALLOC']
-    conf.cc.defines << "MRBC_USE_ALLOC_PROF"
-    conf.cc.defines << 'MRC_CUSTOM_ALLOC'
-  else
-    conf.cc.defines << "MRBC_ALLOC_LIBC"
-  end
 
   conf.cc.defines << "MRBC_NO_STDIO"
   conf.cc.defines << "PICORUBY_INT64"
@@ -36,6 +27,6 @@ MRuby::CrossBuild.new("arm-linux-gnueabihf") do |conf|
   # Net::NTTPSClient needs -lssl -lcrypto
   conf.gem core: "picoruby-net"
 
-  conf.picoruby
+  conf.picoruby(alloc_libc: true)
 
 end

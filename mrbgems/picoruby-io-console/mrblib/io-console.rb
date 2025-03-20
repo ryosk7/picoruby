@@ -4,6 +4,8 @@
 #   So, we need to use `STDOUT.print` instead of `print` in the IO class.
 #
 
+require 'env'
+
 class IO
   def raw(&block)
     raw!
@@ -57,7 +59,11 @@ class IO
         end
       end
     end
-    return [row.to_i, col.to_i]
+    if row == 0 || col == 0
+      [24, 80] # default size
+    else
+      [row.to_i, col.to_i]
+    end
   end
 
   def self.clear_screen

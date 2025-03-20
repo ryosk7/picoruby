@@ -50,6 +50,7 @@ tz_env_set(struct VM *vm)
 {
   mrbc_value *env_instance = mrbc_get_const(mrbc_search_symid("ENV"));
   mrbc_value env = mrbc_instance_getiv(env_instance, mrbc_str_to_symid("env"));
+  mrbc_decref(&env);
   if (env.tt != MRBC_TT_HASH) return;
   mrbc_value key = mrbc_string_new_cstr(vm, "TZ");
   mrbc_value tz = mrbc_hash_get(&env, &key);
@@ -119,7 +120,7 @@ new_from_unixtime_us(struct VM *vm, mrbc_value v[], mrbc_int_t unixtime_us)
   data->unixtime_us = unixtime_us + unixtime_offset * USEC;
   time_t unixtime = data->unixtime_us / USEC;
   localtime_r(&unixtime, &data->tm);
-#if defined(MRBC_USE_HAL_POSIX) || defined(MRBC_USE_HAL_ESP32)
+#if defined(MRBC_USE_HAL_POSIX)
   data->timezone = timezone;  /* global variable from time.h of glibc */
 #else
   data->timezone = _timezone; /* newlib? */
@@ -135,7 +136,7 @@ new_from_tm(struct VM *vm, mrbc_value v[], struct tm *tm)
   PICORUBY_TIME *data = (PICORUBY_TIME *)value.instance->data;
   data->unixtime_us = mktime(tm) * USEC;
   memcpy(&data->tm, tm, sizeof(struct tm));
-#if defined(MRBC_USE_HAL_POSIX) || defined(MRBC_USE_HAL_ESP32)
+#if defined(MRBC_USE_HAL_POSIX)
   data->timezone = timezone;
 #else
   data->timezone = _timezone;

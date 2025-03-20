@@ -18,8 +18,8 @@ MRuby::Gem::Specification.new('picoruby-require') do |spec|
   picogems = Hash.new
   task :collect_gems => "#{mrbgems_dir}/gem_init.c" do
     build.gems.each do |gem|
-      if gem.name.start_with?("picoruby-")
-        gem_name = gem.name.sub(/\Apicoruby-(bin-)?/,'')
+      if gem.name.start_with?("picoruby-") && !gem.name.start_with?("picoruby-bin-")
+        gem_name = gem.name.sub(/\Apicoruby-?/,'')
         mrbfile = "#{mrbgems_dir}/#{gem.name}/mrblib/#{gem_name}.c"
         src_dir = "#{gem.dir}/src"
         initializer = if Dir.exist?(src_dir) && !Dir.empty?(src_dir)
@@ -37,7 +37,7 @@ MRuby::Gem::Specification.new('picoruby-require') do |spec|
           mkdir_p File.dirname(t.name)
           File.open(t.name, 'w') do |f|
             name = File.basename(t.name, ".c").gsub('-','_')
-            mrbc.run(f, t.prerequisites, name, false)
+            mrbc.run(f, t.prerequisites, name, cdump: false)
             if initializer != "NULL"
               f.puts
               f.puts "void #{initializer}(mrbc_vm *vm);"
@@ -58,7 +58,6 @@ MRuby::Gem::Specification.new('picoruby-require') do |spec|
         #include <stdio.h>
         #include <stdbool.h>
         #include <mrubyc.h>
-        #include <alloc.h>
       PICOGEM
       f.puts
       picogems.each do |_require_name, v|
@@ -127,7 +126,7 @@ MRuby::Gem::Specification.new('picoruby-require') do |spec|
         picoruby_load_model_by_name(const char *gem)
         {
           int i = gem_index(gem);
-          if (i < 0) return -1;
+          if (i < 0) return false;
           return picoruby_load_model(prebuilt_gems[i].mrb);
         }
 

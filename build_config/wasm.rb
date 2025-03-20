@@ -1,7 +1,6 @@
 MRuby::CrossBuild.new("wasm") do |conf|
   toolchain :clang
 
-  conf.cc.defines << "PICORUBY_PLATFORM=posix"
   conf.cc.defines << "PICORUBY_INT64=1"
   conf.cc.defines << "MRBC_USE_FLOAT=2"
   conf.cc.defines << "MRBC_ALLOC_LIBC=1"
@@ -26,5 +25,5 @@ MRuby::CrossBuild.new("wasm") do |conf|
   conf.gem core: 'picoruby-rng'
   conf.gem core: 'picoruby-yaml'
 
-  conf.picoruby
+  conf.picoruby(alloc_libc: true)
 end

@@ -15,7 +15,7 @@ c_object_send(mrbc_vm *vm, mrbc_value *v, int argc)
   mrbc_method method;
   const char *method_name;
   if (v[1].tt == MRBC_TT_SYMBOL) {
-    method_name = (const char *)mrbc_symid_to_str(v[1].i);
+    method_name = (const char *)mrbc_symid_to_str(v[1].sym_id);
   } else if (v[1].tt == MRBC_TT_STRING) {
     method_name = (const char *)GET_STRING_ARG(1);
   } else {
@@ -119,7 +119,7 @@ c_object_instance_variable_get(mrbc_vm *vm, mrbc_value *v, int argc)
   mrbc_sym sym_id;
   switch (v[1].tt) {
     case MRBC_TT_SYMBOL:
-      sym_id = v[1].i;
+      sym_id = v[1].sym_id;
       name = mrbc_symid_to_str(sym_id);
       break;
     case MRBC_TT_STRING:
@@ -152,7 +152,7 @@ c_object_instance_variable_set(mrbc_vm *vm, mrbc_value *v, int argc)
   mrbc_sym sym_id;
   switch (v[1].tt) {
     case MRBC_TT_SYMBOL:
-      sym_id = v[1].i;
+      sym_id = v[1].sym_id;
       name = mrbc_symid_to_str(sym_id);
       break;
     case MRBC_TT_STRING:
@@ -181,7 +181,7 @@ c_object_respond_to_q(mrbc_vm *vm, mrbc_value *v, int argc)
   mrbc_method method;
   const char *method_name;
   if (v[1].tt == MRBC_TT_SYMBOL) {
-    method_name = (const char *)mrbc_symid_to_str(v[1].i);
+    method_name = (const char *)mrbc_symid_to_str(v[1].sym_id);
   } else {
     method_name = (const char *)GET_STRING_ARG(1);
   }
@@ -249,7 +249,7 @@ c_object_const_get(mrbc_vm *vm, mrbc_value *v, int argc)
   mrbc_value *value;
   mrbc_sym sym_id;
   if (v[1].tt == MRBC_TT_SYMBOL) {
-    sym_id = v[1].i;
+    sym_id = v[1].sym_id;
   } else if (v[1].tt == MRBC_TT_STRING) {
     sym_id = mrbc_str_to_symid((const char *)GET_STRING_ARG(1));
   } else {
@@ -381,28 +381,29 @@ c_kernel_eval(mrbc_vm *vm, mrbc_value *v, int argc)
   SET_NIL_RETURN();
 }
 
-#define PATH_MAX 1024
+#define METAPROG_PATH_MAX 1024
+
 static void
 c_rbconfig_ruby(mrbc_vm *vm, mrbc_value *v, int argc)
 {
   char *picoruby_path = NULL;
 #ifdef _WIN32
-  char path[PATH_MAX];
-  if (GetModuleFileName(NULL, path, PATH_MAX) != 0) {
+  char path[METAPROG_PATH_MAX];
+  if (GetModuleFileName(NULL, path, METAPROG_PATH_MAX) != 0) {
     picoruby_path = _strdup(path);
   }
 #elif defined(__linux__)
-  char path[PATH_MAX];
+  char path[METAPROG_PATH_MAX];
   ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
   if (len != -1) {
     path[len] = '\0';
     picoruby_path = strdup(path);
   }
 #elif defined(__APPLE__)
-  char path[PATH_MAX];
+  char path[METAPROG_PATH_MAX];
   uint32_t size = sizeof(path);
   if (_NSGetExecutablePath(path, &size) == 0) {
-    char real_path[PATH_MAX];
+    char real_path[METAPROG_PATH_MAX];
     if (realpath(path, real_path) != NULL) {
       picoruby_path = strdup(real_path);
     }

@@ -1,4 +1,4 @@
-MRuby::CrossBuild.new("r2p2_ble-cortex-m0plus") do |conf|
+MRuby::CrossBuild.new("r2p2_w-cortex-m0plus") do |conf|
 
   ###############################################################
   # You need following tools:
@@ -27,8 +27,6 @@ MRuby::CrossBuild.new("r2p2_ble-cortex-m0plus") do |conf|
 
   # These defines should not contradict platform's configuration
   conf.cc.defines << "PICORUBY_INT64"
-  conf.cc.defines << "MRBC_USE_ALLOC_PROF"
-  conf.cc.defines << "MRC_CUSTOM_ALLOC"
   conf.cc.defines << "MRBC_REQUIRE_32BIT_ALIGNMENT=1"
   conf.cc.defines << "MRBC_CONVERT_CRLF=1"
   conf.cc.defines << "MRBC_USE_MATH=1"
@@ -39,6 +37,7 @@ MRuby::CrossBuild.new("r2p2_ble-cortex-m0plus") do |conf|
   conf.cc.defines << "USE_FAT_SD_DISK=1"
   conf.cc.defines << "MAX_SYMBOLS_COUNT=2000"
   conf.cc.defines << "MRBC_USE_FLOAT=2"
+  conf.cc.defines << "USE_WIFI"
 
   conf.gembox "baremetal"
   conf.gembox "peripheral_utils"
@@ -46,9 +45,15 @@ MRuby::CrossBuild.new("r2p2_ble-cortex-m0plus") do |conf|
   conf.gembox "r2p2"
   conf.gembox "stdlib"
   conf.gembox "utils"
+  conf.gem core: 'picoruby-jwt'
+  conf.gem core: 'picoruby-net'
+  conf.gem core: 'picoruby-mqtt'
+  # For some reason, picoruby-net doesn't have dependency on picoruby-cyw43
+  conf.gem core: 'picoruby-cyw43'
   conf.gem core: 'picoruby-ble'
 
   conf.mrubyc_hal_arm
-  conf.picoruby
+  conf.picoruby(alloc_libc: false)
 
 end
+

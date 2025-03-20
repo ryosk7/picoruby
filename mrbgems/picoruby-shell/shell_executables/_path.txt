@@ -2,6 +2,7 @@
 /etc/init.d/r2p2_wifi
 /bin/wifi_connect
 /bin/wifi_config
+/bin/wifi_config_ble
 /bin/mv
 /bin/free
 /bin/irb
@@ -16,5 +17,6 @@
 /bin/install
 /bin/mkdir
 /bin/setup_sdcard
+/bin/machine-id
 /etc/init.d/r2p2
 /etc/init.d/r2p2-wifi
