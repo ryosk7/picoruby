@@ -21,7 +21,6 @@ MRuby::CrossBuild.new("r2p2_w-cortex-m0plus") do |conf|
   conf.cc.flags << "-Wall"
   conf.cc.flags << "-Wno-format"
   conf.cc.flags << "-Wno-unused-function"
-  conf.cc.flags << "-Wno-maybe-uninitialized"
   conf.cc.flags << "-ffunction-sections"
   conf.cc.flags << "-fdata-sections"
 
@@ -48,6 +47,7 @@ MRuby::CrossBuild.new("r2p2_w-cortex-m0plus") do |conf|
   conf.gem core: 'picoruby-jwt'
   conf.gem core: 'picoruby-net'
   conf.gem core: 'picoruby-mqtt'
+  conf.gem core: 'picoruby-mbedtls'
   # For some reason, picoruby-net doesn't have dependency on picoruby-cyw43
   conf.gem core: 'picoruby-cyw43'
   conf.gem core: 'picoruby-ble'

@@ -76,8 +76,15 @@ unless country_code
   puts "Country code not found in configuration file"
   return
 end
-puts "Setting country code to #{country_code}"
-CYW43.init country_code
+if CYW43.initialized?
+  puts "CYW43 already initialized. Skipping country code setting."
+else
+  puts "Setting country code to #{country_code}"
+  unless CYW43.init country_code
+    puts "Failed to initialize CYW43"
+    return # raising an exception here may cause a crash
+  end
+end
 
 if check_auto_connect && !config["wifi"]["auto_connect"]
   puts "Auto connect is disabled"
@@ -121,5 +128,13 @@ if config["wifi"]["watchdog"]
   puts "Watchdog disabled"
 end
 
-Net::NTP.set_hwclock
+ts = Net::NTP.get
+case RUBY_ENGINE
+when "mruby"
+  Machine.set_hwclock(ts[0], ts[1])
+when "mruby/c"
+  Time.set_hwclock(Time.at ts[0])
+else
+  raise "Unsupported Ruby engine: #{RUBY_ENGINE}"
+end
 puts "Time set to #{Time.now}"

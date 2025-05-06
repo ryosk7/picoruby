@@ -14,11 +14,12 @@ class SPI
       sck_pin,
       cipo_pin,
       copi_pin,
+      cs_pin,
       mode,
       first_bit,
       DATA_BITS # Data bit size. No support other than 8
     )
-    if -1 < cs_pin
+    if -1 < cs_pin && !@unit.start_with?("ESP32")
       @cs = GPIO.new(cs_pin, GPIO::OUT)
       @cs.write(1)
     end
@@ -48,8 +49,10 @@ class SPI
 
   def write(*params)
     ret = _write(params_to_array(*params))
-    return ret if -1 < ret
-    GPIO::Error.peripheral_error(ret, "SPI#write")
+    unless -1 < ret
+      GPIO::Error.peripheral_error(ret, "SPI#write")
+    end
+    return ret
   end
 
   def transfer(*params, additional_read_bytes: 0)
@@ -57,7 +60,7 @@ class SPI
     additional_read_bytes.times do
       ary << 0
     end
-    ret = _transfer(params_to_array(*params))
+    ret = _transfer(params_to_array(*ary))
     return ret if ret.is_a?(String)
     GPIO::Error.peripheral_error(ret, "SPI#transfer")
     return ""
