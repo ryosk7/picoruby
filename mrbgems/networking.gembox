@@ -4,4 +4,5 @@ MRuby::GemBox.new do |conf|
   if vm_mruby?
     conf.gem core: 'picoruby-drb' # mruby/c can't support dRuby
   end
+  conf.gem core: 'picoruby-mqtt'
 end
