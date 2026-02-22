@@ -38,9 +38,11 @@ module MQTT
       if block_given?
         # Non-Blocking
         loop do
-          message = _get_message_impl
-          if message
-            yield(message[0], message[1])
+          msg = _get_message_impl
+          if msg
+            topic = msg[0]
+            payload = msg[1]
+            yield(topic, payload)
           end
           sleep_ms 10
         end
