@@ -50,7 +50,7 @@ if(USE_WIFI)
     ${PICO_SDK_PATH}/src/rp2_common/pico_mbedtls/pico_mbedtls.c
   )
   list(APPEND SOURCE_FILES ${ADD_WIFI_SOURCE_FILES})
-  if(PICO_BOARD STREQUAL "pico2_w")
+  if(PICO_BOARD STREQUAL "pico2_w" OR PICO_BOARD STREQUAL "pico_w")
     file(GLOB REMOVE_WIFI_SRCS CONFIGURE_DEPENDS
       ${PICORUBY_ROOT}/mrbgems/picoruby-net/ports/rp2040/*.c
     )
