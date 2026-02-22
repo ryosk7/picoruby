@@ -3,20 +3,20 @@ MRuby::Gem::Specification.new('picoruby-mqtt') do |spec|
   spec.authors = ['Ryosuke Uchida']
   spec.summary = 'MQTT client for PicoRuby'
 
-  spec.add_dependency 'picoruby-net'
+  spec.add_dependency 'picoruby-socket'
   spec.add_dependency 'picoruby-pack'
   if build.vm_mrubyc?
-    spec.add_dependency 'picoruby-time-class'
+    spec.add_dependency 'picoruby-time'
   elsif build.vm_mruby?
     spec.add_dependency 'mruby-time'
   end
 
-  lwip_dir = "#{build.gems['picoruby-net'].dir}/lib/lwip"
+  lwip_dir = "#{MRUBY_ROOT}/mrbgems/picoruby-socket/lib/lwip"
   spec.cc.include_paths << "#{lwip_dir}/src/include"
   spec.cc.include_paths << "#{lwip_dir}/contrib/ports/unix/port/include"
   spec.cc.include_paths << "#{lwip_dir}/src/include/lwip/apps"
-  spec.cc.include_paths << "#{build.gems['picoruby-net'].dir}/include"
-  spec.cc.include_paths << "#{build.gems['picoruby-mbedtls'].dir}/mbedtls/include"
+  spec.cc.include_paths << "#{MRUBY_ROOT}/mrbgems/picoruby-socket/include"
+  spec.cc.include_paths << "#{MRUBY_ROOT}/mrbgems/picoruby-mbedtls/include"
 
   spec.objs << "#{dir}/src/mqtt.o"
   file "#{dir}/src/mqtt.o" => "#{dir}/src/mqtt.c" do |t|
