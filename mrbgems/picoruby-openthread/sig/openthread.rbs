@@ -18,6 +18,7 @@ module OpenThread
   def self.addresses: () -> Array[String]
 
   def self.init: () -> bool
+  def self.validate_tlvs!: (String) -> bool
   def self.configure: (?network_key: String?, ?pan_id: Integer?, ?channel: Integer?, ?tlvs: String?) -> bool
   def self.start: () -> bool
   def self.stop: () -> bool
@@ -33,6 +34,7 @@ module OpenThread
     def send: (String, Integer, String, Integer) -> Integer
     def recvfrom_nonblock: (?Integer) -> [String, udp_addr]?
     def close: () -> nil
+    def dropped: () -> Integer
 
     def recvfrom: (?Integer, ?Integer) -> [String, udp_addr]
     def read: (?Integer) -> String

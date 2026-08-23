@@ -164,7 +164,8 @@ c_udp_bind(mrbc_vm *vm, mrbc_value *v, int argc)
   int port;
   if (argc == 1 && GET_ARG(1).tt == MRBC_TT_INTEGER) {
     port = (int)GET_ARG(1).i;
-  } else if (argc == 2 && GET_ARG(2).tt == MRBC_TT_INTEGER) {
+  } else if (argc == 2 && GET_ARG(1).tt == MRBC_TT_STRING &&
+             GET_ARG(2).tt == MRBC_TT_INTEGER) {
     port = (int)GET_ARG(2).i;
   } else {
     mrbc_raise(vm, MRBC_CLASS(ArgumentError), "bind(port) or bind(host, port)");

@@ -37,6 +37,7 @@ module OpenThread
   # node with nonsense.
   def self.configure(network_key: nil, pan_id: nil, channel: nil, tlvs: nil)
     if tlvs
+      validate_tlvs!(tlvs)
       __set_dataset_tlvs(tlvs)
       return true
     end
@@ -50,6 +51,31 @@ module OpenThread
       raise ArgumentError, "pan_id must be 0..0xFFFF"
     end
     __set_dataset(network_key, pan_id || -1, channel || -1)
+  end
+
+  # OpenThread accepts unknown TLV types as valid, so a blob that is not
+  # a dataset at all -- hex text pasted from `ot-ctl dataset active -x`
+  # is the likely case -- can tile the buffer by accident and configure
+  # the node with nonsense while reporting success. Walk it first: a
+  # real dataset consists of (type, length, value) runs that end exactly
+  # on the last byte.
+  def self.validate_tlvs!(tlvs)
+    unless tlvs.is_a?(String) && !tlvs.empty?
+      raise ArgumentError, "tlvs must be a non-empty String of raw bytes"
+    end
+    i = 0
+    size = tlvs.bytesize
+    while i < size
+      unless i + 2 <= size
+        raise ArgumentError, "malformed Active Dataset TLVs (truncated header)"
+      end
+      len = tlvs.getbyte(i + 1) || 0
+      i += 2 + len
+    end
+    unless i == size
+      raise ArgumentError, "malformed Active Dataset TLVs (length overruns by #{i - size})"
+    end
+    true
   end
 
   # Order matters and is not ours to choose: otThreadSetEnabled answers
