@@ -15,7 +15,18 @@
  * type carries no free function -- there is nothing to release, and a
  * dfree would double-close the singleton socket.
  */
-static const struct mrb_data_type ot_udp_type = { "OpenThread::UDP", NULL };
+/* The port owns the storage, so collection closes the socket rather than
+   freeing it -- otherwise the singleton stays open for the whole boot
+   once a program drops its last reference. */
+static void
+ot_udp_dfree(mrb_state *mrb, void *ptr)
+{
+  if (ptr != NULL) {
+    OT_udp_close((OT_udp_t *)ptr);
+  }
+}
+
+static const struct mrb_data_type ot_udp_type = { "OpenThread::UDP", ot_udp_dfree };
 
 static mrb_value
 mrb_ot_init(mrb_state *mrb, mrb_value self)
@@ -144,7 +155,13 @@ mrb_udp_bind(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "o|o", &a, &b);
   /* bind(port) or bind(host, port); the host is accepted and ignored. */
-  port = mrb_integer(mrb_nil_p(b) ? a : b);
+  {
+    mrb_value pv = mrb_nil_p(b) ? a : b;
+    if (!mrb_integer_p(pv)) {
+      mrb_raise(mrb, E_TYPE_ERROR, "port must be an Integer");
+    }
+    port = mrb_integer(pv);
+  }
   if (!OT_udp_bind(udp_handle(mrb, self), (int)port)) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "otUdpBind failed");
   }
@@ -181,8 +198,9 @@ mrb_udp_recvfrom_nonblock(mrb_state *mrb, mrb_value self)
   mrb_value data = mrb_str_new(mrb, NULL, maxlen);
   char host[OT_ADDR_STRLEN];
   int port = 0;
+  int original = 0;
   int n = OT_udp_recvfrom(sock, RSTRING_PTR(data), (size_t)maxlen,
-                          host, sizeof(host), &port);
+                          host, sizeof(host), &port, &original);
   if (n == OT_RECV_CLOSED) {
     mrb_raise(mrb, E_IO_ERROR, "closed socket");
   }
@@ -190,6 +208,10 @@ mrb_udp_recvfrom_nonblock(mrb_state *mrb, mrb_value self)
     return mrb_nil_value();     /* nothing arrived yet */
   }
   mrb_str_resize(mrb, data, n);
+  if (original > n) {
+    mrb_raisef(mrb, E_RUNTIME_ERROR, "datagram truncated: %d of %d bytes",
+               n, original);
+  }
 
   mrb_value addr = mrb_ary_new_capa(mrb, 4);
   mrb_ary_push(mrb, addr, mrb_str_new_lit(mrb, "AF_INET6"));
@@ -201,6 +223,13 @@ mrb_udp_recvfrom_nonblock(mrb_state *mrb, mrb_value self)
   mrb_ary_push(mrb, ret, data);
   mrb_ary_push(mrb, ret, addr);
   return ret;
+}
+
+static mrb_value
+mrb_udp_dropped(mrb_state *mrb, mrb_value self)
+{
+  OT_udp_t *sock = (OT_udp_t *)DATA_PTR(self);
+  return mrb_fixnum_value(sock == NULL ? 0 : (mrb_int)OT_udp_dropped(sock));
 }
 
 static mrb_value
@@ -236,6 +265,7 @@ mrb_picoruby_openthread_gem_init(mrb_state *mrb)
   mrb_define_method_id(mrb, udp, MRB_SYM(send), mrb_udp_send, MRB_ARGS_REQ(4));
   mrb_define_method_id(mrb, udp, MRB_SYM(recvfrom_nonblock), mrb_udp_recvfrom_nonblock, MRB_ARGS_OPT(1));
   mrb_define_method_id(mrb, udp, MRB_SYM(close), mrb_udp_close, MRB_ARGS_NONE());
+  mrb_define_method_id(mrb, udp, MRB_SYM(dropped), mrb_udp_dropped, MRB_ARGS_NONE());
 }
 
 void

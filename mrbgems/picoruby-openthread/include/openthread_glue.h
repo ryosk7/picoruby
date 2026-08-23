@@ -68,9 +68,18 @@ OT_udp_t *OT_udp_open(void);
 bool OT_udp_bind(OT_udp_t *sock, int port);
 int  OT_udp_sendto(OT_udp_t *sock, const void *data, size_t len,
                    const char *host, int port);
-/* Returns the datagram length, or OT_RECV_WOULD_BLOCK. */
+/*
+ * Returns the number of bytes copied out, OT_RECV_WOULD_BLOCK, or
+ * OT_RECV_CLOSED. *original_len, when not NULL, receives the length as
+ * it arrived on the wire: greater than the return value means the
+ * datagram was truncated, which is otherwise indistinguishable from a
+ * short one.
+ */
 int  OT_udp_recvfrom(OT_udp_t *sock, void *buf, size_t maxlen,
-                     char *host, size_t hostlen, int *port);
+                     char *host, size_t hostlen, int *port,
+                     int *original_len);
+/* Datagrams discarded because the receive slots were all full. */
+uint32_t OT_udp_dropped(OT_udp_t *sock);
 void OT_udp_close(OT_udp_t *sock);
 
 #endif /* PICORUBY_OPENTHREAD_H_ */

@@ -12,8 +12,6 @@
  * required, because rake builds it from a config that has none.
  */
 
-#define E_OT_ERROR (mrbc_class *)MRBC_CLASS(RuntimeError)
-
 static void
 c_ot_init(mrbc_vm *vm, mrbc_value *v, int argc)
 {
@@ -229,7 +227,9 @@ c_udp_recvfrom_nonblock(mrbc_vm *vm, mrbc_value *v, int argc)
   }
   char host[OT_ADDR_STRLEN];
   int port = 0;
-  int n = OT_udp_recvfrom(sock, buf, (size_t)maxlen, host, sizeof(host), &port);
+  int original = 0;
+  int n = OT_udp_recvfrom(sock, buf, (size_t)maxlen, host, sizeof(host),
+                          &port, &original);
   if (n == OT_RECV_CLOSED) {
     mrbc_free(vm, buf);
     mrbc_raise(vm, MRBC_CLASS(IOError), "closed socket");
@@ -256,10 +256,42 @@ c_udp_recvfrom_nonblock(mrbc_vm *vm, mrbc_value *v, int argc)
   mrbc_array_push(&addr, &h1);
   mrbc_array_push(&addr, &h2);
 
+  /* A truncated datagram is not a short one, and returning it silently
+     would make the two indistinguishable. OT_UDP_RX_MAX bounds what the
+     port can hold; Thread's IPv6 MTU allows more. */
+  if (original > n) {
+    mrbc_raisef(vm, MRBC_CLASS(RuntimeError),
+                "datagram truncated: %d of %d bytes", n, original);
+    return;
+  }
+
   mrbc_value ret = mrbc_array_new(vm, 2);
   mrbc_array_push(&ret, &data);
   mrbc_array_push(&ret, &addr);
   SET_RETURN(ret);
+}
+
+static void
+c_udp_dropped(mrbc_vm *vm, mrbc_value *v, int argc)
+{
+  OT_udp_t *sock = *(OT_udp_t **)v->instance->data;
+  SET_INT_RETURN(sock == NULL ? 0 : (int)OT_udp_dropped(sock));
+}
+
+/*
+ * Closed on collection as well as on #close. Without this the socket --
+ * which the port keeps as a singleton -- would stay open for the rest of
+ * the boot after a program dropped its last reference, and every later
+ * UDP.new would raise.
+ */
+static void
+udp_destructor(mrbc_value *v)
+{
+  OT_udp_t *sock = *(OT_udp_t **)v->instance->data;
+  if (sock != NULL) {
+    OT_udp_close(sock);
+    *(OT_udp_t **)v->instance->data = NULL;
+  }
 }
 
 static void
@@ -294,4 +326,6 @@ mrbc_openthread_init(mrbc_vm *vm)
   mrbc_define_method(vm, udp, "send",               c_udp_send);
   mrbc_define_method(vm, udp, "recvfrom_nonblock",  c_udp_recvfrom_nonblock);
   mrbc_define_method(vm, udp, "close",              c_udp_close);
+  mrbc_define_method(vm, udp, "dropped",            c_udp_dropped);
+  mrbc_define_destructor(udp, udp_destructor);
 }

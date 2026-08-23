@@ -34,6 +34,7 @@
 #include <openthread/message.h>
 #include <openthread/dataset.h>
 #include <openthread/tasklet.h>
+#include <openthread/platform/entropy.h>
 #include <openthread/platform/logging.h>
 
 #include "openthread-system.h"
@@ -207,19 +208,42 @@ OT_set_dataset_tlvs(const uint8_t *tlvs, size_t len)
  * and a binding that forgets one gets the field silently ignored. TLVs
  * have no such trap -- what is written is what is set.
  */
-#define OT_TLV_CHANNEL      0
-#define OT_TLV_PANID        1
-#define OT_TLV_NETWORK_KEY  5
+#define OT_TLV_CHANNEL         0
+#define OT_TLV_PANID           1
+#define OT_TLV_EXTENDED_PANID  2
+#define OT_TLV_NETWORK_NAME    3
+#define OT_TLV_NETWORK_KEY     5
+#define OT_TLV_ACTIVE_TIMESTAMP 14
+
+/*
+ * ActiveDatasetManager::IsCommissioned requires NetworkKey, NetworkName,
+ * ExtendedPanId, PanId and Channel (dataset_manager.cpp), and IsComplete
+ * additionally requires a valid network timestamp -- without an Active
+ * Timestamp TLV a node that is first up never forms a network, it just
+ * sits detached. otDatasetSetActiveTlvs does not check any of that: its
+ * validation is per-TLV bounds only, so an incomplete dataset is stored
+ * and reported as success. Emit the full required set.
+ */
+#define OT_DEFAULT_NETWORK_NAME "picoruby"
 
 bool
 OT_set_dataset(const uint8_t key[16], int pan_id, int channel)
 {
-  uint8_t tlvs[32];
+  uint8_t tlvs[64];
   size_t n = 0;
 
   if (key == NULL) {
     return false;
   }
+
+  /* Seconds = 1, ticks = 0, not authoritative. Any valid timestamp will
+     do for a node forming its own network; a node joining an existing
+     one is handed the leader's dataset and overwrites this. */
+  tlvs[n++] = OT_TLV_ACTIVE_TIMESTAMP;
+  tlvs[n++] = 8;
+  tlvs[n++] = 0; tlvs[n++] = 0; tlvs[n++] = 0;
+  tlvs[n++] = 0; tlvs[n++] = 0; tlvs[n++] = 1;
+  tlvs[n++] = 0; tlvs[n++] = 0;
   if (channel >= 0) {
     if (channel < 11 || 26 < channel) {
       return false;    /* 2.4 GHz 802.15.4 channels */
@@ -239,6 +263,24 @@ OT_set_dataset(const uint8_t key[16], int pan_id, int channel)
     tlvs[n++] = (uint8_t)(pan_id >> 8);        /* big endian, per spec */
     tlvs[n++] = (uint8_t)(pan_id & 0xFF);
   }
+  /* Derived from the PAN ID so two boards configured alike agree, and so
+     the value is stable across reboots. */
+  tlvs[n++] = OT_TLV_EXTENDED_PANID;
+  tlvs[n++] = 8;
+  tlvs[n++] = 0xde; tlvs[n++] = 0xad; tlvs[n++] = 0x00; tlvs[n++] = 0xbe;
+  tlvs[n++] = 0xef; tlvs[n++] = 0x00;
+  tlvs[n++] = (uint8_t)((pan_id >= 0 ? pan_id : 0) >> 8);
+  tlvs[n++] = (uint8_t)((pan_id >= 0 ? pan_id : 0) & 0xFF);
+
+  {
+    const char *name = OT_DEFAULT_NETWORK_NAME;
+    size_t name_len = strlen(name);
+    tlvs[n++] = OT_TLV_NETWORK_NAME;
+    tlvs[n++] = (uint8_t)name_len;
+    memcpy(&tlvs[n], name, name_len);
+    n += name_len;
+  }
+
   tlvs[n++] = OT_TLV_NETWORK_KEY;
   tlvs[n++] = 16;
   memcpy(&tlvs[n], key, 16);
@@ -385,7 +427,7 @@ OT_udp_sendto(OT_udp_t *sock, const void *data, size_t len,
 
 int
 OT_udp_recvfrom(OT_udp_t *sock, void *buf, size_t maxlen,
-                char *host, size_t hostlen, int *port)
+                char *host, size_t hostlen, int *port, int *original_len)
 {
   if (sock == NULL || !sock->open) {
     return OT_RECV_CLOSED;
@@ -412,10 +454,19 @@ OT_udp_recvfrom(OT_udp_t *sock, void *buf, size_t maxlen,
   if (port != NULL) {
     *port = slot->peer_port;
   }
+  if (original_len != NULL) {
+    *original_len = slot->original_len;
+  }
 
   slot->used = false;
   sock->head = (uint8_t)((sock->head + 1) % OT_UDP_RX_SLOTS);
   return (int)n;
+}
+
+uint32_t
+OT_udp_dropped(OT_udp_t *sock)
+{
+  return (sock == NULL) ? 0 : sock->dropped;
 }
 
 void
@@ -429,6 +480,29 @@ OT_udp_close(OT_udp_t *sock)
 }
 
 /*
+ * picoruby-rng's weak hook.
+ *
+ * OpenThread's entropy driver keeps NRF_RNG free-running behind a pool
+ * and stops it only when that pool is full, so a second driver poking
+ * START/STOP on the same peripheral can leave it stopped with an empty
+ * pool -- a state otPlatEntropyGet cannot recover from, because it
+ * restarts the generator only on the branch where the pool was
+ * non-empty. Answering from the pool instead removes the contention
+ * rather than trying to arbitrate it.
+ *
+ * Before otSysInit the peripheral is nobody's, so the weak default (a
+ * direct read) is still what runs.
+ */
+bool
+rng_platform_random_bytes(uint8_t *out, size_t len)
+{
+  if (instance == NULL || out == NULL || len == 0) {
+    return false;
+  }
+  return otPlatEntropyGet(out, (uint16_t)len) == OT_ERROR_NONE;
+}
+
+/*
  * Platform obligations OpenThread links against but this product does
  * not use.
  *
@@ -438,7 +512,7 @@ OT_udp_close(OT_udp_t *sock)
  * references them unconditionally.
  */
 void nrf5TransportInit(bool aPseudoReset) { (void)aPseudoReset; }
-void nrf5TransportDeinit(void) {}
+void nrf5TransportDeinit(bool aPseudoReset) { (void)aPseudoReset; }
 void nrf5TransportProcess(void) {}
 bool nrf5TransportPseudoResetRequired(void) { return false; }
 

@@ -30,8 +30,11 @@ module OpenThread
   # MLE Announce scan across every channel, which is the difference
   # between attaching in a second and attaching in a minute.
   #
-  # tlvs: takes a raw Active Dataset TLV string instead, for datasets
-  # produced elsewhere (`ot-ctl dataset active -x`).
+  # tlvs: an Active Dataset as raw TLV *bytes*, for a dataset produced
+  # elsewhere. Note that `ot-ctl dataset active -x` prints hex text --
+  # decode it first, because OpenThread treats unknown TLV types as
+  # valid, so hex passed through verbatim is accepted and configures the
+  # node with nonsense.
   def self.configure(network_key: nil, pan_id: nil, channel: nil, tlvs: nil)
     if tlvs
       __set_dataset_tlvs(tlvs)
@@ -100,17 +103,18 @@ module OpenThread
     # recvfrom(maxlen) -> [data, [af, port, host, host]]
     #
     # Blocks the Task, not the CPU: sleep_ms parks it and lets the
-    # scheduler run, which is also what pumps OpenThread.
-    # Blocks the Task, not the CPU: sleep_ms parks it and lets the
     # scheduler run, which is also what pumps OpenThread. A closed
-    # socket raises IOError from recvfrom_nonblock rather than looping
-    # forever on a nil that can never become a datagram.
+    # socket raises IOError rather than looping forever on a nil that
+    # can never become a datagram.
     def recvfrom(maxlen = 512, flags = 0)
       while true
         result = recvfrom_nonblock(maxlen)
         return result if result
         sleep_ms 10
       end
+      # Not reached: the loop leaves only by returning a datagram or by
+      # recvfrom_nonblock raising. Present so the declared return type
+      # holds without widening it to nil.
       raise IOError, "unreachable"
     end
 
