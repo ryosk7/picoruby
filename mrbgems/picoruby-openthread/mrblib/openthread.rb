@@ -101,12 +101,17 @@ module OpenThread
     #
     # Blocks the Task, not the CPU: sleep_ms parks it and lets the
     # scheduler run, which is also what pumps OpenThread.
+    # Blocks the Task, not the CPU: sleep_ms parks it and lets the
+    # scheduler run, which is also what pumps OpenThread. A closed
+    # socket raises IOError from recvfrom_nonblock rather than looping
+    # forever on a nil that can never become a datagram.
     def recvfrom(maxlen = 512, flags = 0)
       while true
         result = recvfrom_nonblock(maxlen)
         return result if result
         sleep_ms 10
       end
+      raise IOError, "unreachable"
     end
 
     def read(maxlen = 512)

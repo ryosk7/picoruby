@@ -388,7 +388,7 @@ OT_udp_recvfrom(OT_udp_t *sock, void *buf, size_t maxlen,
                 char *host, size_t hostlen, int *port)
 {
   if (sock == NULL || !sock->open) {
-    return -1;
+    return OT_RECV_CLOSED;
   }
 
   ot_udp_slot_t *slot = &sock->slot[sock->head];

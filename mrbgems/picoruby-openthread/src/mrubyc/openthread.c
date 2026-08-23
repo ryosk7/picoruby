@@ -230,9 +230,14 @@ c_udp_recvfrom_nonblock(mrbc_vm *vm, mrbc_value *v, int argc)
   char host[OT_ADDR_STRLEN];
   int port = 0;
   int n = OT_udp_recvfrom(sock, buf, (size_t)maxlen, host, sizeof(host), &port);
+  if (n == OT_RECV_CLOSED) {
+    mrbc_free(vm, buf);
+    mrbc_raise(vm, MRBC_CLASS(IOError), "closed socket");
+    return;
+  }
   if (n < 0) {
     mrbc_free(vm, buf);
-    SET_NIL_RETURN();      /* would block, or closed */
+    SET_NIL_RETURN();      /* nothing arrived yet */
     return;
   }
 

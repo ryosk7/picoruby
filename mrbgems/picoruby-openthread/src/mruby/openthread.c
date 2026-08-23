@@ -183,8 +183,11 @@ mrb_udp_recvfrom_nonblock(mrb_state *mrb, mrb_value self)
   int port = 0;
   int n = OT_udp_recvfrom(sock, RSTRING_PTR(data), (size_t)maxlen,
                           host, sizeof(host), &port);
+  if (n == OT_RECV_CLOSED) {
+    mrb_raise(mrb, E_IO_ERROR, "closed socket");
+  }
   if (n < 0) {
-    return mrb_nil_value();
+    return mrb_nil_value();     /* nothing arrived yet */
   }
   mrb_str_resize(mrb, data, n);
 

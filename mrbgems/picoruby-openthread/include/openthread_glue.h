@@ -34,8 +34,12 @@ typedef enum {
 /* Largest Active Dataset TLV blob otDatasetSetActiveTlvs accepts. */
 #define OT_DATASET_TLVS_MAX 254
 
-/* recvfrom found nothing; not an error. */
+/* recvfrom found nothing; not an error, try again later. */
 #define OT_RECV_WOULD_BLOCK (-1)
+/* The socket is closed. Distinct from the above because a caller that
+   blocks until data arrives would otherwise spin forever on a socket
+   that can never produce any. */
+#define OT_RECV_CLOSED      (-2)
 
 /* ---- lifecycle ---- */
 bool OT_init(void);
