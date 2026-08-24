@@ -12,6 +12,50 @@
  * required, because rake builds it from a config that has none.
  */
 
+/*
+ * Role changes are delivered through a Task::Queue so a waiting task is
+ * parked rather than spinning on a predicate. Bounded like
+ * picoruby-ble's event queue: a role that flaps while nobody is
+ * listening must not grow the heap.
+ */
+#define OT_MAX_PENDING_EVENTS 8
+static mrbc_value role_queue;
+static uint8_t pending_role_events;
+
+void
+OT_push_role_change(int role)
+{
+  if (role_queue.tt == MRBC_TT_NIL ||
+      OT_MAX_PENDING_EVENTS <= pending_role_events) {
+    return;
+  }
+  mrbc_value event = mrbc_integer_value(role);
+  if (mrbc_task_queue_push(&role_queue, &event) == MRBC_TASK_QUEUE_PUSH_OK) {
+    pending_role_events++;
+  }
+}
+
+/* OpenThread.__role_queue = q -- the Ruby side owns the object. */
+static void
+c_ot_set_role_queue(mrbc_vm *vm, mrbc_value *v, int argc)
+{
+  if (argc != 1) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "expected a Task::Queue");
+    return;
+  }
+  mrbc_incref(&GET_ARG(1));
+  role_queue = GET_ARG(1);
+  pending_role_events = 0;
+  SET_NIL_RETURN();
+}
+
+static void
+c_ot_role_event_popped(mrbc_vm *vm, mrbc_value *v, int argc)
+{
+  if (0 < pending_role_events) pending_role_events--;
+  SET_NIL_RETURN();
+}
+
 static void
 c_ot_init(mrbc_vm *vm, mrbc_value *v, int argc)
 {
@@ -323,6 +367,8 @@ mrbc_openthread_init(mrbc_vm *vm)
   mrbc_define_method(vm, mod, "__role",             c_ot_role);
   mrbc_define_method(vm, mod, "eid",                c_ot_eid);
   mrbc_define_method(vm, mod, "addresses",          c_ot_addresses);
+  mrbc_define_method(vm, mod, "__role_queue=",      c_ot_set_role_queue);
+  mrbc_define_method(vm, mod, "__role_event_popped", c_ot_role_event_popped);
 
   mrbc_class *udp = mrbc_define_class_under(vm, mod, "UDP", mrbc_class_object);
   mrbc_define_method(vm, udp, "new",                c_udp_new);

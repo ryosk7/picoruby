@@ -69,6 +69,18 @@ bool OT_address_at(int index, char *buf, size_t len);
 void OT_process(void);
 bool OT_work_pending(void);
 
+/*
+ * Role changes, pushed from the port into whatever the VM binding uses
+ * to wake a Task.
+ *
+ * Defined by src/, called by ports/nrf52 -- the same direction as
+ * picoruby-ble's BLE_push_event, and for the same reason: the port must
+ * not name a VM type, and the binding must not include OpenThread's
+ * headers. Runs in VM context, because otSetStateChangedCallback fires
+ * from otTaskletsProcess, which the scheduler hook drives.
+ */
+void OT_push_role_change(int role);
+
 /* ---- UDP ---- */
 typedef struct OT_udp OT_udp_t;
 

@@ -107,20 +107,34 @@ module OpenThread
 
   # Block until this node has joined, or give up.
   #
+  # Waits on the role-change queue rather than polling a predicate: the
+  # stack tells us when it moves, so a node that attaches in a second
+  # does not sit through ten sleeps first, and one that takes thirty does
+  # not wake three hundred times to ask.
+  #
   # Returns true, or raises ConnectTimeout. Note this is not the shape of
   # CYW43.connect_timeout, which returns a bool -- CYW43 raises from
   # connect_with_dhcp instead. Raising is the better fit here because a
   # Thread node has no separate "got an address" step to hang it on.
   def self.wait_attached(timeout_ms: 30_000)
-    waited = 0
-    until attached?
-      if waited >= timeout_ms
-        raise ConnectTimeout, "not attached after #{timeout_ms} ms (role: #{role})"
-      end
-      sleep_ms 100
-      waited += 100
+    return true if attached?
+    queue = (@role_queue ||= begin
+      q = Task::Queue.new
+      self.__role_queue = q
+      q
+    end)
+    deadline = timeout_ms
+    while deadline > 0
+      started = Machine.board_millis
+      # A nil pop is the timeout; anything else is a role change, and
+      # attached? is re-read rather than trusted from the payload so a
+      # transition we did not wake for is still seen.
+      popped = queue.pop(false, timeout_ms: deadline)
+      __role_event_popped unless popped.nil?
+      return true if attached?
+      deadline -= (Machine.board_millis - started)
     end
-    true
+    raise ConnectTimeout, "not attached after #{timeout_ms} ms (role: #{role})"
   end
 
   # A UDP socket over the Thread mesh.

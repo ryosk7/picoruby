@@ -28,6 +28,28 @@ ot_udp_dfree(mrb_state *mrb, void *ptr)
 
 static const struct mrb_data_type ot_udp_type = { "OpenThread::UDP", ot_udp_dfree };
 
+/*
+ * mruby has no Task::Queue in core; mruby-task supplies it, and this
+ * gem depends on it there. The role change is recorded and the waiting
+ * task polls a cheap flag rather than the stack -- the mruby VM is not
+ * the target for this port today, so this stays deliberately simple.
+ */
+static volatile int last_role_change = -1;
+
+void
+OT_push_role_change(int role)
+{
+  last_role_change = role;
+}
+
+static mrb_value
+mrb_ot_role_changed(mrb_state *mrb, mrb_value self)
+{
+  int role = last_role_change;
+  last_role_change = -1;
+  return (role < 0) ? mrb_nil_value() : mrb_fixnum_value(role);
+}
+
 static mrb_value
 mrb_ot_init(mrb_state *mrb, mrb_value self)
 {
@@ -265,6 +287,7 @@ mrb_picoruby_openthread_gem_init(mrb_state *mrb)
   mrb_define_module_function_id(mrb, mod, MRB_SYM(__role), mrb_ot_role, MRB_ARGS_NONE());
   mrb_define_module_function_id(mrb, mod, MRB_SYM(eid), mrb_ot_eid, MRB_ARGS_NONE());
   mrb_define_module_function_id(mrb, mod, MRB_SYM(addresses), mrb_ot_addresses, MRB_ARGS_NONE());
+  mrb_define_module_function_id(mrb, mod, MRB_SYM(__role_changed), mrb_ot_role_changed, MRB_ARGS_NONE());
 
   struct RClass *udp = mrb_define_class_under_id(mrb, mod, MRB_SYM(UDP), mrb->object_class);
   MRB_SET_INSTANCE_TT(udp, MRB_TT_CDATA);

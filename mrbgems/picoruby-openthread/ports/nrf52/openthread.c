@@ -159,6 +159,24 @@ udp_receive(void *context, otMessage *message, const otMessageInfo *info)
  * "cheap, never sleep, never re-enter the scheduler"; both calls below
  * poll and return.
  */
+/*
+ * Waking Ruby on a role change rather than making it ask.
+ *
+ * otSetStateChangedCallback fires from otTaskletsProcess -- i.e. from
+ * the scheduler hook, in VM context -- so pushing straight into a
+ * Task::Queue here is safe and needs no ISR-side latch. This is what
+ * lets OpenThread#wait_attached block on the queue instead of polling a
+ * predicate every 100 ms.
+ */
+static void
+ot_state_changed(otChangedFlags flags, void *context)
+{
+  (void)context;
+  if (flags & OT_CHANGED_THREAD_ROLE) {
+    OT_push_role_change((int)otThreadGetDeviceRole(instance));
+  }
+}
+
 static void
 ot_scheduler_service(void *ud)
 {
@@ -193,6 +211,7 @@ OT_init(void)
   if (instance == NULL) {
     return false;
   }
+  otSetStateChangedCallback(instance, ot_state_changed, NULL);
   picorb_scheduler_service_add(ot_scheduler_service, NULL);
   return true;
 }
