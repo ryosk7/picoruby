@@ -41,7 +41,3 @@ module OpenThread
   end
 end
 
-module Network
-  Thread: untyped
-  ConnectTimeout: untyped
-end

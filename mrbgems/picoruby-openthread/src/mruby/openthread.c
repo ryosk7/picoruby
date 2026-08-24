@@ -195,23 +195,31 @@ mrb_udp_recvfrom_nonblock(mrb_state *mrb, mrb_value self)
   }
 
   OT_udp_t *sock = udp_handle(mrb, self);
+
+  /* Peek before consuming: recvfrom clears the slot, so raising on
+     truncation afterwards would destroy the datagram it complains about. */
+  int wire = OT_udp_peek_len(sock);
+  if (wire == OT_RECV_CLOSED) {
+    mrb_raise(mrb, E_IO_ERROR, "closed socket");
+  }
+  if (wire == OT_RECV_WOULD_BLOCK) {
+    return mrb_nil_value();
+  }
+  if (wire > maxlen) {
+    mrb_raisef(mrb, E_RUNTIME_ERROR,
+               "datagram of %d bytes needs a larger maxlen than %d",
+               wire, (int)maxlen);
+  }
+
   mrb_value data = mrb_str_new(mrb, NULL, maxlen);
   char host[OT_ADDR_STRLEN];
   int port = 0;
-  int original = 0;
   int n = OT_udp_recvfrom(sock, RSTRING_PTR(data), (size_t)maxlen,
-                          host, sizeof(host), &port, &original);
-  if (n == OT_RECV_CLOSED) {
-    mrb_raise(mrb, E_IO_ERROR, "closed socket");
-  }
+                          host, sizeof(host), &port, NULL);
   if (n < 0) {
-    return mrb_nil_value();     /* nothing arrived yet */
+    return mrb_nil_value();     /* raced with a close, or drained meanwhile */
   }
   mrb_str_resize(mrb, data, n);
-  if (original > n) {
-    mrb_raisef(mrb, E_RUNTIME_ERROR, "datagram truncated: %d of %d bytes",
-               n, original);
-  }
 
   mrb_value addr = mrb_ary_new_capa(mrb, 4);
   mrb_ary_push(mrb, addr, mrb_str_new_lit(mrb, "AF_INET6"));

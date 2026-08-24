@@ -221,6 +221,24 @@ c_udp_recvfrom_nonblock(mrbc_vm *vm, mrbc_value *v, int argc)
   OT_udp_t *sock = udp_handle(vm, v);
   if (sock == NULL) return;
 
+  /* Ask before taking: recvfrom clears the slot, so a truncation raised
+     after the fact would have already thrown the datagram away. */
+  int wire = OT_udp_peek_len(sock);
+  if (wire == OT_RECV_CLOSED) {
+    mrbc_raise(vm, MRBC_CLASS(IOError), "closed socket");
+    return;
+  }
+  if (wire == OT_RECV_WOULD_BLOCK) {
+    SET_NIL_RETURN();
+    return;
+  }
+  if (wire > maxlen) {
+    mrbc_raisef(vm, MRBC_CLASS(RuntimeError),
+                "datagram of %d bytes needs a larger maxlen than %d",
+                wire, maxlen);
+    return;   /* the datagram stays queued; retry with a bigger buffer */
+  }
+
   uint8_t *buf = mrbc_alloc(vm, (unsigned int)maxlen);
   if (buf == NULL) {
     mrbc_raise(vm, MRBC_CLASS(NoMemoryError), "out of memory");
@@ -228,17 +246,11 @@ c_udp_recvfrom_nonblock(mrbc_vm *vm, mrbc_value *v, int argc)
   }
   char host[OT_ADDR_STRLEN];
   int port = 0;
-  int original = 0;
   int n = OT_udp_recvfrom(sock, buf, (size_t)maxlen, host, sizeof(host),
-                          &port, &original);
-  if (n == OT_RECV_CLOSED) {
-    mrbc_free(vm, buf);
-    mrbc_raise(vm, MRBC_CLASS(IOError), "closed socket");
-    return;
-  }
+                          &port, NULL);
   if (n < 0) {
     mrbc_free(vm, buf);
-    SET_NIL_RETURN();      /* nothing arrived yet */
+    SET_NIL_RETURN();      /* raced with a close, or drained meanwhile */
     return;
   }
 
@@ -256,15 +268,6 @@ c_udp_recvfrom_nonblock(mrbc_vm *vm, mrbc_value *v, int argc)
   mrbc_array_push(&addr, &p);
   mrbc_array_push(&addr, &h1);
   mrbc_array_push(&addr, &h2);
-
-  /* A truncated datagram is not a short one, and returning it silently
-     would make the two indistinguishable. OT_UDP_RX_MAX bounds what the
-     port can hold; Thread's IPv6 MTU allows more. */
-  if (original > n) {
-    mrbc_raisef(vm, MRBC_CLASS(RuntimeError),
-                "datagram truncated: %d of %d bytes", n, original);
-    return;
-  }
 
   mrbc_value ret = mrbc_array_new(vm, 2);
   mrbc_array_push(&ret, &data);

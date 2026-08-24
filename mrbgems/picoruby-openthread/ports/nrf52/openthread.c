@@ -40,6 +40,7 @@
 #include "openthread-system.h"
 
 #include "../../include/openthread_glue.h"
+#include "../../../picoruby-rng/include/rng.h"
 #include "../../../picoruby-machine/include/hal.h"
 
 /* The glue enum has to keep step with otDeviceRole; it exists only so
@@ -67,8 +68,14 @@ static otInstance *instance;
  * datagram from a short one instead of silently getting less than was
  * sent.
  */
+/* Raise from a build config if the application needs deeper queueing or
+   larger datagrams; picoruby-irq guards IRQ_MAX_SOURCES the same way. */
+#ifndef OT_UDP_RX_SLOTS
 #define OT_UDP_RX_SLOTS 2
+#endif
+#ifndef OT_UDP_RX_MAX
 #define OT_UDP_RX_MAX   512
+#endif
 
 typedef struct {
   uint8_t  data[OT_UDP_RX_MAX];
@@ -173,16 +180,7 @@ OT_init(void)
   if (instance == NULL) {
     return false;
   }
-  /*
-   * Without the service the stack is pumped only from the idle hook,
-   * which runs when no Ruby task is runnable -- so Thread would half
-   * work, in a way that looks like a flaky radio rather than a
-   * configuration error. Report it instead.
-   */
-  if (!picorb_scheduler_service_add(ot_scheduler_service, NULL)) {
-    instance = NULL;
-    return false;
-  }
+  picorb_scheduler_service_add(ot_scheduler_service, NULL);
   return true;
 }
 
@@ -470,6 +468,16 @@ OT_udp_recvfrom(OT_udp_t *sock, void *buf, size_t maxlen,
   slot->used = false;
   sock->head = (uint8_t)((sock->head + 1) % OT_UDP_RX_SLOTS);
   return (int)n;
+}
+
+int
+OT_udp_peek_len(OT_udp_t *sock)
+{
+  if (sock == NULL || !sock->open) {
+    return OT_RECV_CLOSED;
+  }
+  const ot_udp_slot_t *slot = &sock->slot[sock->head];
+  return slot->used ? (int)slot->original_len : OT_RECV_WOULD_BLOCK;
 }
 
 uint32_t

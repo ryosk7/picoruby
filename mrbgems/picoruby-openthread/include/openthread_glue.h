@@ -88,6 +88,13 @@ int  OT_udp_recvfrom(OT_udp_t *sock, void *buf, size_t maxlen,
                      int *original_len);
 /* Datagrams discarded because the receive slots were all full. */
 uint32_t OT_udp_dropped(OT_udp_t *sock);
+/*
+ * Length of the datagram at the head of the queue as it arrived, or
+ * OT_RECV_WOULD_BLOCK / OT_RECV_CLOSED. Lets a caller size its buffer,
+ * or refuse, before recvfrom consumes the slot -- once consumed the
+ * datagram is gone, so raising afterwards would destroy the evidence.
+ */
+int OT_udp_peek_len(OT_udp_t *sock);
 void OT_udp_close(OT_udp_t *sock);
 
 #endif /* PICORUBY_OPENTHREAD_H_ */

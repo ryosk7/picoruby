@@ -11,7 +11,11 @@
 # protocol would undo that. Network::Thread exists as the role-name
 # alias, in the same place Network::WiFi does.
 module OpenThread
-  class ConnectTimeout < StandardError; end
+  # RuntimeError, not StandardError: picoruby-network declares
+  # Network::ConnectTimeout as a RuntimeError and both CYW43 and
+  # ESP32 raise one, so a rescue written against the shared name has to
+  # catch this too.
+  class ConnectTimeout < RuntimeError; end
 
   ROLES = [:disabled, :detached, :child, :router, :leader]
 
@@ -103,8 +107,10 @@ module OpenThread
 
   # Block until this node has joined, or give up.
   #
-  # Returns true, or raises ConnectTimeout -- the same shape as
-  # CYW43.connect_timeout, so Network can present one interface.
+  # Returns true, or raises ConnectTimeout. Note this is not the shape of
+  # CYW43.connect_timeout, which returns a bool -- CYW43 raises from
+  # connect_with_dhcp instead. Raising is the better fit here because a
+  # Thread node has no separate "got an address" step to hang it on.
   def self.wait_attached(timeout_ms: 30_000)
     waited = 0
     until attached?
@@ -151,17 +157,3 @@ module OpenThread
   end
 end
 
-# Present the link under the role name, the way Network::WiFi names CYW43
-# and ESP32::WiFi.
-#
-# Declared here rather than in picoruby-network's RUBY_PLATFORM case,
-# because RP2040 and RP2350 have no 802.15.4 radio and can never run
-# this: putting the arm in the shared file would compile Thread bytecode
-# into every board that will never execute it. Reopening Network from the
-# gem that actually provides the link keeps the cost where the feature is.
-require "network"
-
-module Network
-  Thread = OpenThread
-  ConnectTimeout = OpenThread::ConnectTimeout
-end
