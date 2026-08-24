@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <openthread/instance.h>
@@ -96,11 +97,23 @@ struct OT_udp {
 };
 
 /*
- * One socket. OpenThread is a singleton and so, in practice, is the
- * program using it here; a table would cost RAM that the attribute pool
- * needs more. Ruby raises rather than silently reusing it.
+ * Sockets are allocated on open, not reserved.
+ *
+ * A file-static socket would cost its slots -- OT_UDP_RX_SLOTS *
+ * OT_UDP_RX_MAX plus metadata, about 1 kB -- in .bss whether or not a
+ * program ever opens one, which is the opposite of frugal on a part
+ * whose attribute table is also competing for RAM. Allocating on demand
+ * costs nothing until used, and lets a node run more than one port:
+ * CoAP alongside an application socket is an ordinary Thread
+ * arrangement, not an exotic one.
+ *
+ * The count is bounded so a leak shows up as a refused open rather than
+ * as a heap that quietly consumes the stack.
  */
-static OT_udp_t udp_socket;
+#ifndef OT_UDP_MAX_SOCKETS
+#define OT_UDP_MAX_SOCKETS 2
+#endif
+static uint8_t udp_open_count;
 
 static void
 addr_to_string(const otIp6Address *addr, char *buf, size_t len)
@@ -365,16 +378,19 @@ OT_address_at(int index, char *buf, size_t len)
 OT_udp_t *
 OT_udp_open(void)
 {
-  OT_udp_t *sock = &udp_socket;
-
-  if (instance == NULL || sock->open) {
+  if (instance == NULL || udp_open_count >= OT_UDP_MAX_SOCKETS) {
     return NULL;
   }
-  memset(sock, 0, sizeof(*sock));
+  OT_udp_t *sock = calloc(1, sizeof(*sock));
+  if (sock == NULL) {
+    return NULL;
+  }
   if (otUdpOpen(instance, &sock->socket, udp_receive, sock) != OT_ERROR_NONE) {
+    free(sock);
     return NULL;
   }
   sock->open = true;
+  udp_open_count++;
   return sock;
 }
 
@@ -486,6 +502,12 @@ OT_udp_dropped(OT_udp_t *sock)
   return (sock == NULL) ? 0 : sock->dropped;
 }
 
+/*
+ * Frees the handle. Both VM bindings drop their pointer in the same
+ * breath -- #close and the destructor each null it -- so the caller
+ * cannot reach freed storage; udp_handle raises IOError on the null
+ * instead.
+ */
 void
 OT_udp_close(OT_udp_t *sock)
 {
@@ -494,6 +516,10 @@ OT_udp_close(OT_udp_t *sock)
   }
   otUdpClose(instance, &sock->socket);
   sock->open = false;
+  if (udp_open_count > 0) {
+    udp_open_count--;
+  }
+  free(sock);
 }
 
 /*

@@ -148,7 +148,7 @@ c_udp_new(mrbc_vm *vm, mrbc_value *v, int argc)
   OT_udp_t *sock = OT_udp_open();
   if (sock == NULL) {
     mrbc_raise(vm, MRBC_CLASS(RuntimeError),
-               "cannot open a UDP socket (already open, or Thread not started)");
+               "cannot open a UDP socket (out of sockets, or Thread not started)");
     return;
   }
   mrbc_value obj = mrbc_instance_new(vm, v->cls, sizeof(OT_udp_t *));

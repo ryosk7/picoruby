@@ -125,9 +125,10 @@ module OpenThread
 
   # A UDP socket over the Thread mesh.
   #
-  # The method set mirrors CRuby's UDPSocket so that programs written
-  # against picoruby-socket move across unchanged, but the class is
-  # deliberately NOT installed as a top-level UDPSocket: mruby/c's
+  # The method set mirrors CRuby's UDPSocket so the API is familiar --
+  # not so that picoruby-socket programs port unchanged, which naming the
+  # class differently defeats anyway. It is deliberately NOT installed as
+  # a top-level UDPSocket: mruby/c's
   # define_class returns an existing class rather than refusing, so a
   # later `require "socket"` would graft lwIP's C methods onto this one
   # and reinterpret its data pointer.

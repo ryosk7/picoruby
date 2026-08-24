@@ -141,7 +141,7 @@ mrb_udp_initialize(mrb_state *mrb, mrb_value self)
   OT_udp_t *sock = OT_udp_open();
   if (sock == NULL) {
     mrb_raise(mrb, E_RUNTIME_ERROR,
-              "cannot open a UDP socket (already open, or Thread not started)");
+              "cannot open a UDP socket (out of sockets, or Thread not started)");
   }
   mrb_data_init(self, sock, &ot_udp_type);
   return self;
