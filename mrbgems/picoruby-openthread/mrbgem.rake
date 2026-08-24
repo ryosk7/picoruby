@@ -6,7 +6,8 @@ MRuby::Gem::Specification.new('picoruby-openthread') do |spec|
   # Machine.board_millis for the attach timeout, and the scheduler-service
   # multiplexer that drives OpenThread's tasklet loop.
   spec.add_dependency 'picoruby-machine'
-  # mruby/c has Task::Queue built in; mruby needs the gem for it.
+  # Task::Queue carries role changes to a waiting wait_attached. mruby/c
+  # has it built in; mruby gets it from mruby-task.
   spec.add_dependency 'mruby-task' if build.picoruby?
 
   spec.cc.include_paths << "#{dir}/include"

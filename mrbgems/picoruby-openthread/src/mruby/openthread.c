@@ -29,25 +29,48 @@ ot_udp_dfree(mrb_state *mrb, void *ptr)
 static const struct mrb_data_type ot_udp_type = { "OpenThread::UDP", ot_udp_dfree };
 
 /*
- * mruby has no Task::Queue in core; mruby-task supplies it, and this
- * gem depends on it there. The role change is recorded and the waiting
- * task polls a cheap flag rather than the stack -- the mruby VM is not
- * the target for this port today, so this stays deliberately simple.
+ * Role changes go into the Task::Queue the Ruby side hands over, exactly
+ * as on the mruby/c arm -- mrblib calls __role_queue= and
+ * __role_event_popped and must find them on both VMs. mruby-task
+ * supplies Queue here; the gem depends on it when build.picoruby?.
+ *
+ * Bounded like picoruby-ble's event queue: a role that flaps while
+ * nobody is listening must not grow the heap.
  */
-static volatile int last_role_change = -1;
+#define OT_MAX_PENDING_EVENTS 8
+static mrb_state *queue_mrb;
+static mrb_value role_queue;
+static uint8_t pending_role_events;
 
 void
 OT_push_role_change(int role)
 {
-  last_role_change = role;
+  if (queue_mrb == NULL || mrb_nil_p(role_queue) ||
+      OT_MAX_PENDING_EVENTS <= pending_role_events) {
+    return;
+  }
+  mrb_funcall_id(queue_mrb, role_queue, MRB_SYM(push), 1,
+                 mrb_fixnum_value(role));
+  pending_role_events++;
 }
 
 static mrb_value
-mrb_ot_role_changed(mrb_state *mrb, mrb_value self)
+mrb_ot_set_role_queue(mrb_state *mrb, mrb_value self)
 {
-  int role = last_role_change;
-  last_role_change = -1;
-  return (role < 0) ? mrb_nil_value() : mrb_fixnum_value(role);
+  mrb_value q;
+  mrb_get_args(mrb, "o", &q);
+  queue_mrb = mrb;
+  role_queue = q;
+  mrb_gc_register(mrb, q);   /* the C side keeps a reference */
+  pending_role_events = 0;
+  return mrb_nil_value();
+}
+
+static mrb_value
+mrb_ot_role_event_popped(mrb_state *mrb, mrb_value self)
+{
+  if (0 < pending_role_events) pending_role_events--;
+  return mrb_nil_value();
 }
 
 static mrb_value
@@ -287,7 +310,8 @@ mrb_picoruby_openthread_gem_init(mrb_state *mrb)
   mrb_define_module_function_id(mrb, mod, MRB_SYM(__role), mrb_ot_role, MRB_ARGS_NONE());
   mrb_define_module_function_id(mrb, mod, MRB_SYM(eid), mrb_ot_eid, MRB_ARGS_NONE());
   mrb_define_module_function_id(mrb, mod, MRB_SYM(addresses), mrb_ot_addresses, MRB_ARGS_NONE());
-  mrb_define_module_function_id(mrb, mod, MRB_SYM(__role_changed), mrb_ot_role_changed, MRB_ARGS_NONE());
+  mrb_define_module_function_id(mrb, mod, MRB_SYM_E(__role_queue), mrb_ot_set_role_queue, MRB_ARGS_REQ(1));
+  mrb_define_module_function_id(mrb, mod, MRB_SYM(__role_event_popped), mrb_ot_role_event_popped, MRB_ARGS_NONE());
 
   struct RClass *udp = mrb_define_class_under_id(mrb, mod, MRB_SYM(UDP), mrb->object_class);
   MRB_SET_INSTANCE_TT(udp, MRB_TT_CDATA);
