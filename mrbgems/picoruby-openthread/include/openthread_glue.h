@@ -36,9 +36,17 @@ typedef enum {
 
 /* recvfrom found nothing; not an error, try again later. */
 #define OT_RECV_WOULD_BLOCK (-1)
-/* The socket is closed. Distinct from the above because a caller that
-   blocks until data arrives would otherwise spin forever on a socket
-   that can never produce any. */
+/*
+ * The socket is closed. Distinct from the above because a caller that
+ * blocks until data arrives would otherwise spin forever on a socket
+ * that can never produce any.
+ *
+ * Both VM bindings drop their handle on #close and raise IOError from
+ * the null check before they get here, so this is unreachable through
+ * Ruby today. It is the contract for anyone calling the port directly,
+ * and it is what keeps the distinction honest if that null check is
+ * ever relaxed.
+ */
 #define OT_RECV_CLOSED      (-2)
 
 /* ---- lifecycle ---- */

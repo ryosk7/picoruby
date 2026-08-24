@@ -38,12 +38,12 @@ scheduler_dispatch(mrb_state *mrb, void *ud)
   }
 }
 
-void
+bool
 picorb_scheduler_service_add(mrb_state *mrb, void (*fn)(mrb_state *mrb, void *ud), void *ud)
 {
   int i = 0;
 
-  if (fn == NULL) return;
+  if (fn == NULL) return false;
   if (owner_ != mrb) {
     /* A new VM: drop entries left over from the previous one rather
        than call into whatever they closed over. */
@@ -51,7 +51,7 @@ picorb_scheduler_service_add(mrb_state *mrb, void (*fn)(mrb_state *mrb, void *ud
     owner_ = mrb;
   }
   while (i < service_count_) {
-    if (services_[i].fn == fn && services_[i].ud == ud) return;
+    if (services_[i].fn == fn && services_[i].ud == ud) return true;
     i++;
   }
   if (PICORB_SCHEDULER_SERVICE_MAX <= service_count_) {
@@ -61,6 +61,7 @@ picorb_scheduler_service_add(mrb_state *mrb, void (*fn)(mrb_state *mrb, void *ud
   services_[service_count_].ud = ud;
   service_count_++;
   mrb_task_set_scheduler_hook(mrb, scheduler_dispatch, NULL);
+  return true;
 }
 
 void
@@ -109,26 +110,27 @@ scheduler_dispatch(void *ud)
   }
 }
 
-void
+bool
 picorb_scheduler_service_add(void (*fn)(void *ud), void *ud)
 {
   int i = 0;
 
-  if (fn == NULL) return;
+  if (fn == NULL) return false;
   while (i < service_count_) {
-    if (services_[i].fn == fn && services_[i].ud == ud) return;
+    if (services_[i].fn == fn && services_[i].ud == ud) return true;
     i++;
   }
   if (PICORB_SCHEDULER_SERVICE_MAX <= service_count_) {
-    /* No VM context to raise into here, and a dropped service would be
-       a silent hang later. */
+    /* No VM context to raise into here, and the console may not be up
+       yet, so the caller is told as well as the log. */
     mrbc_printf("[FATAL] too many scheduler services\n");
-    return;
+    return false;
   }
   services_[service_count_].fn = fn;
   services_[service_count_].ud = ud;
   service_count_++;
   mrbc_task_set_scheduler_hook(scheduler_dispatch, NULL);
+  return true;
 }
 
 void

@@ -173,7 +173,16 @@ OT_init(void)
   if (instance == NULL) {
     return false;
   }
-  picorb_scheduler_service_add(ot_scheduler_service, NULL);
+  /*
+   * Without the service the stack is pumped only from the idle hook,
+   * which runs when no Ruby task is runnable -- so Thread would half
+   * work, in a way that looks like a flaky radio rather than a
+   * configuration error. Report it instead.
+   */
+  if (!picorb_scheduler_service_add(ot_scheduler_service, NULL)) {
+    instance = NULL;
+    return false;
+  }
   return true;
 }
 
@@ -516,8 +525,10 @@ void nrf5TransportDeinit(bool aPseudoReset) { (void)aPseudoReset; }
 void nrf5TransportProcess(void) {}
 bool nrf5TransportPseudoResetRequired(void) { return false; }
 
-/* Referenced even with OT_LOG_OUTPUT=NONE. Logging goes nowhere rather
-   than to the USB CDC console, which the shell owns. */
+/* Defined for completeness rather than necessity: with OT_LOG_OUTPUT=NONE
+   nothing references it and --gc-sections drops it from the image
+   entirely. Kept so a build that turns logging on links, and pointed at
+   nowhere rather than at the USB CDC console, which the shell owns. */
 void
 otPlatLog(otLogLevel level, otLogRegion region, const char *format, ...)
 {

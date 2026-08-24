@@ -60,7 +60,11 @@ void picorb_hal_idle_cpu(mrb_state *mrb);
  * a HAL init, say) is re-registered rather than duplicated.
  */
 #define PICORB_SCHEDULER_SERVICE_MAX 4
-void picorb_scheduler_service_add(mrb_state *mrb, void (*fn)(mrb_state *mrb, void *ud), void *ud);
+/* False when the table is full. A dropped service is not cosmetic: the
+   caller's work simply never runs, and for a network stack that means a
+   link that half-works rather than one that fails, so the answer has to
+   reach the caller rather than only a console that may not be up. */
+bool picorb_scheduler_service_add(mrb_state *mrb, void (*fn)(mrb_state *mrb, void *ud), void *ud);
 void picorb_scheduler_service_remove(mrb_state *mrb, void (*fn)(mrb_state *mrb, void *ud), void *ud);
 #endif
 
@@ -74,7 +78,8 @@ void picorb_hal_idle_cpu(void);
  * global rather than per-VM, so there is no owner to track and the
  * callback takes no VM argument. */
 #define PICORB_SCHEDULER_SERVICE_MAX 4
-void picorb_scheduler_service_add(void (*fn)(void *ud), void *ud);
+/* See the mruby declaration above for why this reports failure. */
+bool picorb_scheduler_service_add(void (*fn)(void *ud), void *ud);
 void picorb_scheduler_service_remove(void (*fn)(void *ud), void *ud);
 #endif
 
