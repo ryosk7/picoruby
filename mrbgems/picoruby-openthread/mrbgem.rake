@@ -6,6 +6,8 @@ MRuby::Gem::Specification.new('picoruby-openthread') do |spec|
   # Machine.board_millis for the attach timeout, and the scheduler-service
   # multiplexer that drives OpenThread's tasklet loop.
   spec.add_dependency 'picoruby-machine'
+  # Reopened to publish Network::Thread; see the bottom of mrblib.
+  spec.add_dependency 'picoruby-network'
   # mruby/c has Task::Queue built in; mruby needs the gem for it.
   spec.add_dependency 'mruby-task' if build.picoruby?
 

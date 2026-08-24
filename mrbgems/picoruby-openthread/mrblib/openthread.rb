@@ -150,3 +150,18 @@ module OpenThread
     end
   end
 end
+
+# Present the link under the role name, the way Network::WiFi names CYW43
+# and ESP32::WiFi.
+#
+# Declared here rather than in picoruby-network's RUBY_PLATFORM case,
+# because RP2040 and RP2350 have no 802.15.4 radio and can never run
+# this: putting the arm in the shared file would compile Thread bytecode
+# into every board that will never execute it. Reopening Network from the
+# gem that actually provides the link keeps the cost where the feature is.
+require "network"
+
+module Network
+  Thread = OpenThread
+  ConnectTimeout = OpenThread::ConnectTimeout
+end

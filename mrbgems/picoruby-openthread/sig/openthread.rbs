@@ -40,3 +40,8 @@ module OpenThread
     def read: (?Integer) -> String
   end
 end
+
+module Network
+  Thread: untyped
+  ConnectTimeout: untyped
+end
