@@ -177,6 +177,23 @@ ot_state_changed(otChangedFlags flags, void *context)
   }
 }
 
+/*
+ * Set by otSysEventSignalPending, which the radio driver calls when it
+ * leaves work for otSysProcessDrivers -- from its ISRs, and also from
+ * thread context when a sleep or energy-detect request has to be
+ * retried. The ISR case wakes the idle hook by itself; the retry case
+ * raises no interrupt, so without this flag the core would sleep on it
+ * until the next tick. Cleared before the drivers run so a signal raised
+ * while they run is not lost.
+ */
+static volatile bool driver_event_pending;
+
+void
+otSysEventSignalPending(void)
+{
+  driver_event_pending = true;
+}
+
 static void
 ot_scheduler_service(void *ud)
 {
@@ -184,6 +201,7 @@ ot_scheduler_service(void *ud)
   if (instance == NULL) {
     return;
   }
+  driver_event_pending = false;
   otTaskletsProcess(instance);
   otSysProcessDrivers(instance);
 }
@@ -197,7 +215,8 @@ OT_process(void)
 bool
 OT_work_pending(void)
 {
-  return instance != NULL && otTaskletsArePending(instance);
+  return instance != NULL &&
+         (driver_event_pending || otTaskletsArePending(instance));
 }
 
 bool
