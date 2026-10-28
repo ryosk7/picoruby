@@ -577,10 +577,27 @@ OT_udp_close(OT_udp_t *sock)
 bool
 rng_platform_random_bytes(uint8_t *out, size_t len)
 {
+  size_t done = 0;
+
   if (instance == NULL || out == NULL || len == 0) {
     return false;
   }
-  return otPlatEntropyGet(out, (uint16_t)len) == OT_ERROR_NONE;
+  /* otPlatEntropyGet takes a uint16_t length. A larger request cast
+     down would fill only its low part and report success, handing the
+     rest of the buffer -- uninitialised heap -- back as random bytes.
+     Note there is no spin budget on this path: otPlatEntropyGet waits
+     on its pool without a bound, as the vendor driver does. */
+  while (done < len) {
+    size_t chunk = len - done;
+    if (chunk > UINT16_MAX) {
+      chunk = UINT16_MAX;
+    }
+    if (otPlatEntropyGet(out + done, (uint16_t)chunk) != OT_ERROR_NONE) {
+      return false;
+    }
+    done += chunk;
+  }
+  return true;
 }
 
 /*
